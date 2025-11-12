@@ -36,7 +36,13 @@ async function run() {
         // products related api
         app.post('/products', async(req, res) => {
             const newProduct = req.body;
-            const result = await productsCollection.insertOne(newProduct);
+            const result = await productsCollection.insertMany(newProduct);
+            res.send(result);
+        })
+
+        app.get('/latest-products', async(req, res) => {
+            const cursor = productsCollection.find().sort({created_at: -1}).limit(6);
+            const result = await cursor.toArray();
             res.send(result);
         })
 
