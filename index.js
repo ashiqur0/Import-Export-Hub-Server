@@ -29,8 +29,22 @@ async function run() {
 
         // create database
         const db = client.db('import_export_db');
-        const productsCollection = db.collection();
 
+        // create database collection
+        const productsCollection = db.collection('products');
+
+        // products related api
+        app.post('/products', async(req, res) => {
+            const newProduct = req.body;
+            const result = await productsCollection.insertOne(newProduct);
+            res.send(result);
+        })
+
+        app.get('/products', async(req, res) => {
+            const cursor = productsCollection.find();
+            const result = await cursor.toArray();
+            res.send(result);
+        })
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
