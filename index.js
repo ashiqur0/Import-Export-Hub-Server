@@ -49,18 +49,31 @@ async function run() {
             res.send(result);
         });
 
-        // get all product
-        app.get('/products', async (req, res) => {
-            const cursor = productsCollection.find();
-            const result = await cursor.toArray();
-            res.send(result);
-        });
-
         // get individual product with id
         app.get('/products/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await productsCollection.findOne(query);
+            res.send(result);
+        });
+
+        // get exported product using exporter email
+        app.get('/products', async(req, res) => {
+            const email = req.query.email;
+            const query = {};
+            if (email) {
+                query.exporter_email = email;
+            }
+
+            const cursor = productsCollection.find(query);
+            const result = await cursor.toArray();
+            res.send(result);
+        });
+
+        // get all product
+        app.get('/products', async (req, res) => {
+            const cursor = productsCollection.find();
+            const result = await cursor.toArray();
             res.send(result);
         });
 
