@@ -58,7 +58,7 @@ async function run() {
         });
 
         // get exported product using exporter email
-        app.get('/products', async(req, res) => {
+        app.get('/products', async (req, res) => {
             const email = req.query.email;
             const query = {};
             if (email) {
@@ -77,6 +77,27 @@ async function run() {
             res.send(result);
         });
 
+        // put api to full update of a product
+        app.put('/products/:id', async (req, res) => {
+            const id = req.params.id;
+            const { productName, productPhoto, productPrice, productOrigin, productRating, productAvailableQuantity, exporter_email } = req.body;
+            const query = { _id: new ObjectId(id) };
+            const update = {
+                $set: {
+                    productName: productName,
+                    productImage: productPhoto,
+                    price: productPrice,
+                    originCountry: productOrigin,
+                    rating: productRating,
+                    availableQuantity: productAvailableQuantity,
+                    exporter_email: exporter_email
+                }
+            }
+
+            const result = await productsCollection.updateOne(query, update);
+            res.send(result);
+        });
+
         // update product
         app.patch('/products/:id', async (req, res) => {
             const id = req.params.id;
@@ -89,6 +110,14 @@ async function run() {
             }
             const options = {};
             const result = await productsCollection.updateOne(query, update, options);
+            res.send(result);
+        });
+
+        // delete exported product
+        app.delete('/products/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await productsCollection.deleteOne(query);
             res.send(result);
         });
 
@@ -108,9 +137,9 @@ async function run() {
         })
 
         // delete my import
-        app.delete('/import/:id', async(req, res) => { 
+        app.delete('/import/:id', async (req, res) => {
             const id = req.params.id;
-            const query = {_id: new ObjectId(id)};
+            const query = { _id: new ObjectId(id) };
             const result = await importedProductCollection.deleteOne(query);
             res.send(result);
         });
