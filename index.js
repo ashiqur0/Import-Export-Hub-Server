@@ -122,7 +122,7 @@ async function run() {
         });
 
         // import related api
-        // create imported product
+        // create imported product with importer email as query parameter
         app.post('/import', async (req, res) => {
             const importedProduct = req.body;
             const result = await importedProductCollection.insertOne(importedProduct);
@@ -131,7 +131,13 @@ async function run() {
 
         // get imported product
         app.get('/import', async (req, res) => {
-            const cursor = importedProductCollection.find();
+            const email = req.query.email;
+            const query = {};
+            if (email) {
+                query.importer_email = email;
+            }
+
+            const cursor = importedProductCollection.find(query);
             const result = await cursor.toArray();
             res.send(result);
         })
