@@ -8,7 +8,7 @@ const port = process.env.PORT || 3000;
 const admin = require("firebase-admin");
 const serviceAccount = require("./import-export-hub-firebase-admin-key.json");
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(serviceAccount)
 });
 
 // middleware
@@ -16,24 +16,32 @@ app.use(cors());
 app.use(express.json());
 
 // firebase token verification middleware
-const verifyFirebaseAuthToken = async(req, res, next) => {
+const verifyFirebaseAuthToken = async (req, res, next) => {
     const authorization = req.headers.authorization;
 
     if (!authorization) {
-        return res.status(401).send({message: 'unauthorized access1'});
+        return res.status(401).send({ message: 'unauthorized access1' });
     }
 
     const token = authorization.split(' ')[1];
 
     try {
         const decoded = await admin.auth().verifyIdToken(token);
-        console.log('inside token', decoded);
-
         req.token_email = decoded.email;
         next();
-    } catch(error) {
-        return res.status(401).send({message: 'unauthorized access2'});
+    } catch (error) {
+        return res.status(401).send({ message: 'unauthorized access2' });
     }
+}
+
+const emailValidation = (req, res, next) => {
+    const email = req.query.email;
+    if (email) {
+        if (email !== req.token_email) {
+            return res.status(403).send({ message: 'forbidden access' });
+        }
+    }    
+    next();
 }
 
 // public api
@@ -65,16 +73,7 @@ async function run() {
 
         // products related api
         // create product || protected api || only logged in user can create a new product || protected api
-        app.post('/products', verifyFirebaseAuthToken, async (req, res) => {
-            const email = req.query.email;
-            const query = {};
-            if (email) {
-                query.exporter_email = email;
-                if (email !== req.token_email) {
-                    return res.status(401).send({message: 'unauthorized attempt'});
-                }
-            }
-
+        app.post('/products', verifyFirebaseAuthToken, emailValidation, async (req, res) => {
             const newProduct = req.body;
             const result = await productsCollection.insertOne(newProduct);
             res.send(result);
@@ -103,7 +102,7 @@ async function run() {
             if (email) {
                 query.exporter_email = email;
                 if (email !== req.token_email) {
-                    return res.status(403).send({message: 'forbidden access'});
+                    return res.status(403).send({ message: 'forbidden access' });
                 }
             }
 
@@ -120,14 +119,7 @@ async function run() {
         });
 
         // put api to full update of a product || protected api
-        app.put('/products/:id', verifyFirebaseAuthToken, async (req, res) => {
-            const email = req.query.email;
-            if (email) {
-                if (email !== req.token_email) {
-                    return res.status(403).send({message: 'forbidden access'});
-                }
-            }
-
+        app.put('/products/:id', verifyFirebaseAuthToken, emailValidation, async (req, res) => {
             const id = req.params.id;
             const { productName, productPhoto, productPrice, productOrigin, productRating, productAvailableQuantity, exporter_email } = req.body;
             const query = { _id: new ObjectId(id) };
@@ -148,14 +140,7 @@ async function run() {
         });
 
         // update product quantity || after import some quantity || protected api
-        app.patch('/products/:id', verifyFirebaseAuthToken, async (req, res) => {
-            const email = req.query.email;
-            if (email) {
-                if (email !== req.token_email) {
-                    return res.status(403).send({message: 'forbidden access'});
-                }
-            }
-
+        app.patch('/products/:id', verifyFirebaseAuthToken, emailValidation, async (req, res) => {
             const id = req.params.id;
             const { availableQuantity } = req.body;
             const query = { _id: new ObjectId(id) };
@@ -170,14 +155,7 @@ async function run() {
         });
 
         // delete exported product || protected api
-        app.delete('/products/:id', verifyFirebaseAuthToken, async (req, res) => {
-            const email = req.query.email;
-            if (email) {
-                if (email !== req.token_email) {
-                    return res.status(403).send({message: 'forbidden access'});
-                }
-            }
-
+        app.delete('/products/:id', verifyFirebaseAuthToken, emailValidation, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await productsCollection.deleteOne(query);
@@ -186,27 +164,20 @@ async function run() {
 
         // import related api
         // create imported product || with importer email as query parameter || protected api
-        app.post('/import', verifyFirebaseAuthToken, async (req, res) => {
-            const email = req.query.email;
-            if (email) {
-                if (email !== req.token_email) {
-                    return res.status(403).send({message: 'forbidden access'});
-                }
-            }
-
+        app.post('/import', verifyFirebaseAuthToken, emailValidation, async (req, res) => {
             const importedProduct = req.body;
             const result = await importedProductCollection.insertOne(importedProduct);
             res.send(result);
         });
 
         // get imported product || protected api
-        app.get('/import', verifyFirebaseAuthToken,  async (req, res) => {
+        app.get('/import', verifyFirebaseAuthToken, async (req, res) => {
             const email = req.query.email;
             const query = {};
             if (email) {
                 query.importer_email = email;
                 if (email !== req.token_email) {
-                    return res.status(403).send({message: 'forbidden access'});
+                    return res.status(403).send({ message: 'forbidden access' });
                 }
             }
 
@@ -216,14 +187,7 @@ async function run() {
         })
 
         // delete my import || protected api
-        app.delete('/import/:id', verifyFirebaseAuthToken, async (req, res) => {
-            const email = req.query.email;
-            if (email) {
-                if (email !== req.token_email) {
-                    return res.status(403).send({message: 'forbidden access'});
-                }
-            }
-
+        app.delete('/import/:id', verifyFirebaseAuthToken, emailValidation, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await importedProductCollection.deleteOne(query);
