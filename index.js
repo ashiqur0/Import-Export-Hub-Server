@@ -5,11 +5,40 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
 const port = process.env.PORT || 3000;
 
+const admin = require("firebase-admin");
+const serviceAccount = require("./import-export-hub-firebase-admin-key.json");
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+// middleware
 app.use(cors());
 app.use(express.json());
 
+// firebase token verification middleware
+const verifyFirebaseAuthToken = async(req, res, next) => {
+    const authorization = req.headers.authorization;
+
+    if (!authorization) {
+        return res.status(401).send({message: 'unauthorized access1'});
+    }
+
+    const token = authorization.split(' ')[1];
+
+    try {
+        const decoded = await admin.auth().verifyIdToken(token);
+        console.log('inside token', decoded);
+
+        req.token_email = decoded.email;
+        next();
+    } catch(error) {
+        return res.status(401).send({message: 'unauthorized access2'});
+    }
+}
+
+// public api
 app.get('/', (req, res) => {
-    res.send('Hello from server');
+    res.send('Hello from express server ..');
 });
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.edix7i0.mongodb.net/?appName=Cluster0`;
@@ -35,21 +64,31 @@ async function run() {
         const importedProductCollection = db.collection('imported_product');
 
         // products related api
-        // create product
-        app.post('/products', async (req, res) => {
+        // create product || protected api || only logged in user can create a new product || protected api
+        app.post('/products', verifyFirebaseAuthToken, async (req, res) => {
+            const email = req.query.email;
+            const query = {};
+            if (email) {
+                query.exporter_email = email;
+                if (email !== req.token_email) {
+                    return res.status(401).send({message: 'unauthorized attempt'});
+                }
+            }
+
             const newProduct = req.body;
             const result = await productsCollection.insertOne(newProduct);
             res.send(result);
         });
 
-        // get latest product
+        // get latest product || public api
         app.get('/latest-products', async (req, res) => {
             const cursor = productsCollection.find().sort({ created_at: -1 }).limit(6);
             const result = await cursor.toArray();
             res.send(result);
         });
 
-        // get individual product with id
+        // get individual product with id || product details || see details
+        // protected api || protected from client side || using protected route
         app.get('/products/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
@@ -57,12 +96,15 @@ async function run() {
             res.send(result);
         });
 
-        // get exported product using exporter email
-        app.get('/products', async (req, res) => {
+        // get exported product || protected api || using exporter email
+        app.get('/products', verifyFirebaseAuthToken, async (req, res) => {
             const email = req.query.email;
             const query = {};
             if (email) {
                 query.exporter_email = email;
+                if (email !== req.token_email) {
+                    return res.status(403).send({message: 'forbidden access'});
+                }
             }
 
             const cursor = productsCollection.find(query);
@@ -70,15 +112,22 @@ async function run() {
             res.send(result);
         });
 
-        // get all product
-        app.get('/products', async (req, res) => {
+        // get api || public api || to get all product
+        app.get('/allproducts', async (req, res) => {
             const cursor = productsCollection.find();
             const result = await cursor.toArray();
             res.send(result);
         });
 
-        // put api to full update of a product
-        app.put('/products/:id', async (req, res) => {
+        // put api to full update of a product || protected api
+        app.put('/products/:id', verifyFirebaseAuthToken, async (req, res) => {
+            const email = req.query.email;
+            if (email) {
+                if (email !== req.token_email) {
+                    return res.status(403).send({message: 'forbidden access'});
+                }
+            }
+
             const id = req.params.id;
             const { productName, productPhoto, productPrice, productOrigin, productRating, productAvailableQuantity, exporter_email } = req.body;
             const query = { _id: new ObjectId(id) };
@@ -98,8 +147,15 @@ async function run() {
             res.send(result);
         });
 
-        // update product
-        app.patch('/products/:id', async (req, res) => {
+        // update product quantity || after import some quantity || protected api
+        app.patch('/products/:id', verifyFirebaseAuthToken, async (req, res) => {
+            const email = req.query.email;
+            if (email) {
+                if (email !== req.token_email) {
+                    return res.status(403).send({message: 'forbidden access'});
+                }
+            }
+
             const id = req.params.id;
             const { availableQuantity } = req.body;
             const query = { _id: new ObjectId(id) };
@@ -113,8 +169,15 @@ async function run() {
             res.send(result);
         });
 
-        // delete exported product
-        app.delete('/products/:id', async (req, res) => {
+        // delete exported product || protected api
+        app.delete('/products/:id', verifyFirebaseAuthToken, async (req, res) => {
+            const email = req.query.email;
+            if (email) {
+                if (email !== req.token_email) {
+                    return res.status(403).send({message: 'forbidden access'});
+                }
+            }
+
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await productsCollection.deleteOne(query);
@@ -122,19 +185,29 @@ async function run() {
         });
 
         // import related api
-        // create imported product with importer email as query parameter
-        app.post('/import', async (req, res) => {
+        // create imported product || with importer email as query parameter || protected api
+        app.post('/import', verifyFirebaseAuthToken, async (req, res) => {
+            const email = req.query.email;
+            if (email) {
+                if (email !== req.token_email) {
+                    return res.status(403).send({message: 'forbidden access'});
+                }
+            }
+
             const importedProduct = req.body;
             const result = await importedProductCollection.insertOne(importedProduct);
             res.send(result);
         });
 
-        // get imported product
-        app.get('/import', async (req, res) => {
+        // get imported product || protected api
+        app.get('/import', verifyFirebaseAuthToken,  async (req, res) => {
             const email = req.query.email;
             const query = {};
             if (email) {
                 query.importer_email = email;
+                if (email !== req.token_email) {
+                    return res.status(403).send({message: 'forbidden access'});
+                }
             }
 
             const cursor = importedProductCollection.find(query);
@@ -142,8 +215,15 @@ async function run() {
             res.send(result);
         })
 
-        // delete my import
-        app.delete('/import/:id', async (req, res) => {
+        // delete my import || protected api
+        app.delete('/import/:id', verifyFirebaseAuthToken, async (req, res) => {
+            const email = req.query.email;
+            if (email) {
+                if (email !== req.token_email) {
+                    return res.status(403).send({message: 'forbidden access'});
+                }
+            }
+
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await importedProductCollection.deleteOne(query);
