@@ -67,7 +67,7 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // Connect the client 
-        await client.connect();
+        // await client.connect();
 
         // create database
         const db = client.db('import_export_db');
